@@ -36,6 +36,18 @@ class CategoriaPredefinida(Base):
     icono = Column(String(50), nullable=True)
 
 
+class MotherCategory(Base):
+    __tablename__ = "mother_categories"
+
+    id_mother_category = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(100), nullable=False)
+
+    categorias = relationship(
+        "Categoria",
+        back_populates="mother_category"
+    )
+
+
 class Categoria(Base):
     __tablename__ = "categorias"
 
@@ -47,9 +59,26 @@ class Categoria(Base):
         nullable=False,
     )
     es_predeterminada = Column(Boolean, nullable=False, default=False)
+
+    mother_category_id = Column(
+        Integer,
+        ForeignKey(
+        "mother_categories.id_mother_category",
+        ondelete="SET NULL",
+        onupdate="CASCADE"
+        ),
+        nullable=True,
+    )
+
     fecha_creacion = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     usuario = relationship("Usuario", back_populates="categorias")
+
+    mother_category = relationship(
+    "MotherCategory",
+    back_populates="categorias"
+    )
+
     gastos = relationship("Gasto", back_populates="categoria")
     ingresos = relationship("Ingreso", back_populates="categoria")
 
