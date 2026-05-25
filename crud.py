@@ -130,7 +130,7 @@ def get_presupuesto(db: Session, id_usuario: int, mes: str):
         models.PresupuestoMensual.mes == mes,
     ).first()
 
-RESET_CODE_TTL_MINUTES = 15
+RESET_CODE_TTL_MINUTES = 5
 
 
 def create_password_reset(db: Session, id_usuario: int) -> models.PasswordReset:
