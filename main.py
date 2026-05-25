@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import SessionLocal
-from rutas_admin import router as rutas_admin
+from rutas_admin import router as rutas_admin, public_router as rutas_admin_public
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from decimal import Decimal
@@ -24,6 +24,7 @@ import email_service
 app = FastAPI()
 
 app.include_router(rutas_admin)
+app.include_router(rutas_admin_public)
 
 app.add_middleware(
     CORSMiddleware,
@@ -265,237 +266,24 @@ def auth_google(
             GOOGLE_WEB_CLIENT_ID,
             clock_skew_in_seconds=60,
         )
-
-        email = idinfo.get("email")
-        nombre = idinfo.get("name") or (email.split("@")[0] if email else "Usuario")
-
-        if not email:
-            raise HTTPException(status_code=401, detail="Token sin email")
-
-        usuario = crud.get_or_create_google_user(db, correo=email, nombre=nombre)
-
-        return {
-            "id_usuario": usuario.id_usuario,
-            "nombre": usuario.nombre,
-            "correo": usuario.correo,
-        }
-
-    except HTTPException:
-        raise
     except Exception as e:
-        print("Error /auth/google:", repr(e))
-        raise HTTPException(
-            status_code=401,
-            detail=f"Token de Google inválido: {e}"
-        )
-# =====================================================
-# ALL CATEGORIES
-# =====================================================
+        print("Error verificando token de Google:", repr(e))
+        raise HTTPException(status_code=401, detail=f"Token de Google inválido: {e}")
 
-@app.get("/all-categories")
-def get_all_categories(
-    db: Session = Depends(get_db)
-):
+    email = idinfo.get("email")
+    nombre = idinfo.get("name") or (email.split("@")[0] if email else "Usuario")
 
-    categorias = db.query(models.Categoria).all()
+    if not email:
+        raise HTTPException(status_code=401, detail="Token sin email")
 
-    return [
-        {
-            "id": c.id_categoria,
-            "nombre": c.nombre,
-            "id_usuario": c.id_usuario
-        }
-        for c in categorias
-    ]
-
-
-# =====================================================
-# ACTIVITY LOGS (SIMULADOS)
-# =====================================================
-
-@app.get("/activity-logs/{user_id}")
-def get_activity_logs(
-    user_id: int,
-    db: Session = Depends(get_db)
-):
-
-    gastos = crud.get_gastos_by_user(
-        db,
-        user_id
-    )
-
-    ingresos = crud.get_ingresos_by_user(
-        db,
-        user_id
-    )
-
-    logs = []
-
-    for g in gastos:
-
-        logs.append({
-            "tipo": "gasto",
-            "descripcion": g.descripcion,
-            "fecha": g.fecha.isoformat()
-        })
-
-    for i in ingresos:
-
-        logs.append({
-            "tipo": "ingreso",
-            "descripcion": i.descripcion,
-            "fecha": i.fecha.isoformat()
-        })
-
-    logs.sort(
-        key=lambda x: x["fecha"],
-        reverse=True
-    )
-
-    return logs
-
-
-# =====================================================
-# DELETE USER
-# =====================================================
-
-@app.delete("/users/{user_id}")
-def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db)
-):
-
-    usuario = db.query(models.Usuario).filter(
-        models.Usuario.id_usuario == user_id
-    ).first()
-
-    if not usuario:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado"
-        )
-
-    db.query(models.Gasto).filter(
-        models.Gasto.id_usuario == user_id
-    ).delete()
-
-    db.query(models.Ingreso).filter(
-        models.Ingreso.id_usuario == user_id
-    ).delete()
-
-    db.query(models.Categoria).filter(
-        models.Categoria.id_usuario == user_id
-    ).delete()
-
-    db.delete(usuario)
-
-    db.commit()
+    try:
+        usuario = crud.get_or_create_google_user(db, correo=email, nombre=nombre)
+    except Exception as e:
+        print("Error de BD en /auth/google:", repr(e))
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
 
     return {
-        "message": "Usuario eliminado correctamente"
-    }
-@app.get("/analytics/category-distribution")
-def category_distribution(
-    db: Session = Depends(get_db)
-):
-
-    categorias = db.query(models.Categoria).all()
-
-    total = len(categorias)
-
-    if total == 0:
-        return []
-
-    conteo = {}
-
-    for categoria in categorias:
-
-        if categoria.mother_category:
-
-            nombre = categoria.mother_category.nombre
-
-        else:
-
-            nombre = "Sin Clasificar"
-
-        if nombre not in conteo:
-
-            conteo[nombre] = 0
-
-        conteo[nombre] += 1
-
-    analytics = []
-
-    for nombre, cantidad in conteo.items():
-
-        analytics.append({
-            "category": nombre,
-            "total": cantidad,
-            "percentage": round((cantidad / total) * 100, 1)
-        })
-
-    analytics.sort(
-        key=lambda x: x["total"],
-        reverse=True
-    )
-
-    return analytics
-
-@app.get("/mother-categories")
-def get_mother_categories(
-    db: Session = Depends(get_db)
-):
-
-    categorias = db.query(
-        models.MotherCategory
-    ).all()
-
-    return [
-        {
-            "id": c.id_mother_category,
-            "nombre": c.nombre
-        }
-        for c in categorias
-    ]
-
-@app.put("/reclassify-category/{category_id}")
-def reclassify_category(
-    category_id: str,
-    mother_category_id: int,
-    db: Session = Depends(get_db)
-):
-
-    categoria = db.query(
-        models.Categoria
-    ).filter(
-        models.Categoria.id_categoria == category_id
-    ).first()
-
-    if not categoria:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Categoría no encontrada"
-        )
-
-    mother = db.query(
-        models.MotherCategory
-    ).filter(
-        models.MotherCategory.id_mother_category == mother_category_id
-    ).first()
-
-    if not mother:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Categoría madre no encontrada"
-        )
-
-    categoria.mother_category_id = mother_category_id
-
-    db.commit()
-
-    return {
-        "message": "Categoría reclasificada correctamente"
+        "id_usuario": usuario.id_usuario,
+        "nombre": usuario.nombre,
+        "correo": usuario.correo,
     }
