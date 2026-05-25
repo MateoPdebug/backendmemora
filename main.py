@@ -79,6 +79,7 @@ def get_categories(userId: int, db: Session = Depends(get_db)):
             "name": c.nombre,
             "emoji": "",
             "userId": c.id_usuario,
+            "mother_category_id": c.mother_category_id,
         }
         for c in categorias
     ]
@@ -91,13 +92,39 @@ def create_category(payload: CategoriaCreate, db: Session = Depends(get_db)):
         id_usuario=payload.id_usuario,
         nombre=payload.nombre,
         es_predeterminada=payload.es_predeterminada,
+        mother_category_id=payload.mother_category_id,
     )
     return {
         "id": nueva.id_categoria,
         "name": nueva.nombre,
         "emoji": "",
         "userId": nueva.id_usuario,
+        "mother_category_id": nueva.mother_category_id,
     }
+
+
+@app.delete("/categories/{id_categoria}")
+def delete_category(id_categoria: str, db: Session = Depends(get_db)):
+    result = crud.delete_categoria(db=db, id_categoria=id_categoria)
+    if result["ok"]:
+        return {"ok": True}
+
+    if result["reason"] == "not_found":
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    if result["reason"] == "has_movements":
+        partes = []
+        if result["gastos"] > 0:
+            partes.append(f"{result['gastos']} gasto(s)")
+        if result["ingresos"] > 0:
+            partes.append(f"{result['ingresos']} ingreso(s)")
+        msg = (
+            f"No se puede borrar la categoría porque tiene {' y '.join(partes)} "
+            f"asociados. Borrá los movimientos primero."
+        )
+        raise HTTPException(status_code=400, detail=msg)
+
+    raise HTTPException(status_code=400, detail="No se pudo borrar la categoría")
 
 
 def _gasto_to_movement(g: models.Gasto) -> dict:

@@ -32,6 +32,7 @@ class CategoriaCreate(BaseModel):
     nombre: str
     id_usuario: int
     es_predeterminada: bool = False
+    mother_category_id: Optional[int] = None
 
 
 class MovimientoCreate(BaseModel):

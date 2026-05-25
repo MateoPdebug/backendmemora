@@ -57,12 +57,14 @@ def create_categoria(
     id_usuario: int,
     nombre: str,
     es_predeterminada: bool = False,
+    mother_category_id: Optional[int] = None,
 ):
     nueva = models.Categoria(
         id_categoria=str(uuid.uuid4()),
         nombre=nombre,
         id_usuario=id_usuario,
         es_predeterminada=es_predeterminada,
+        mother_category_id=mother_category_id,
     )
     db.add(nueva)
     db.commit()
@@ -130,7 +132,7 @@ def get_presupuesto(db: Session, id_usuario: int, mes: str):
         models.PresupuestoMensual.mes == mes,
     ).first()
 
-RESET_CODE_TTL_MINUTES = 5
+RESET_CODE_TTL_MINUTES = 15
 
 
 def create_password_reset(db: Session, id_usuario: int) -> models.PasswordReset:
@@ -185,6 +187,40 @@ def update_password(db: Session, id_usuario: int, nueva_contrasena: str):
     db.commit()
     db.refresh(usuario)
     return usuario
+
+
+def delete_categoria(db: Session, id_categoria: str) -> dict:
+    """
+    Devuelve un dict con info del resultado:
+      {"ok": True} si se borró.
+      {"ok": False, "reason": "not_found"} si no existe.
+      {"ok": False, "reason": "has_movements", "gastos": N, "ingresos": M}
+        si tiene movimientos asociados (no se puede borrar).
+    """
+    categoria = db.query(models.Categoria).filter(
+        models.Categoria.id_categoria == id_categoria
+    ).first()
+    if not categoria:
+        return {"ok": False, "reason": "not_found"}
+
+    gastos_count = db.query(models.Gasto).filter(
+        models.Gasto.id_categoria == id_categoria
+    ).count()
+    ingresos_count = db.query(models.Ingreso).filter(
+        models.Ingreso.id_categoria == id_categoria
+    ).count()
+
+    if gastos_count > 0 or ingresos_count > 0:
+        return {
+            "ok": False,
+            "reason": "has_movements",
+            "gastos": gastos_count,
+            "ingresos": ingresos_count,
+        }
+
+    db.delete(categoria)
+    db.commit()
+    return {"ok": True}
 
 
 def reclassify_categoria(
