@@ -189,6 +189,33 @@ def update_password(db: Session, id_usuario: int, nueva_contrasena: str):
     return usuario
 
 
+def delete_movement(db: Session, id_movement: str) -> dict:
+    """
+    Intenta borrar un movimiento (gasto o ingreso) por su id.
+    Devuelve:
+      {"ok": True, "tipo": "gasto"} si era un gasto.
+      {"ok": True, "tipo": "ingreso"} si era un ingreso.
+      {"ok": False, "reason": "not_found"} si no existe.
+    """
+    gasto = db.query(models.Gasto).filter(
+        models.Gasto.id_gasto == id_movement
+    ).first()
+    if gasto:
+        db.delete(gasto)
+        db.commit()
+        return {"ok": True, "tipo": "gasto"}
+
+    ingreso = db.query(models.Ingreso).filter(
+        models.Ingreso.id_ingreso == id_movement
+    ).first()
+    if ingreso:
+        db.delete(ingreso)
+        db.commit()
+        return {"ok": True, "tipo": "ingreso"}
+
+    return {"ok": False, "reason": "not_found"}
+
+
 def delete_categoria(db: Session, id_categoria: str) -> dict:
     """
     Devuelve un dict con info del resultado:

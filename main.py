@@ -103,6 +103,14 @@ def create_category(payload: CategoriaCreate, db: Session = Depends(get_db)):
     }
 
 
+@app.delete("/movements/{id_movement}")
+def delete_movement(id_movement: str, db: Session = Depends(get_db)):
+    result = crud.delete_movement(db=db, id_movement=id_movement)
+    if result["ok"]:
+        return {"ok": True, "tipo": result["tipo"]}
+    raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+
+
 @app.delete("/categories/{id_categoria}")
 def delete_category(id_categoria: str, db: Session = Depends(get_db)):
     result = crud.delete_categoria(db=db, id_categoria=id_categoria)
