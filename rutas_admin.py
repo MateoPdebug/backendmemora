@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import SessionLocal
 import models
+import crud
 
 router = APIRouter(
     prefix="/admin",
@@ -101,3 +102,36 @@ def category_distribution(db: Session = Depends(get_db)):
         {"id": row[0], "nombre": row[1], "total": float(row[2])}
         for row in result
     ]
+
+
+@public_router.put("/reclassify-category/{id_categoria}")
+def reclassify_category(
+    id_categoria: str,
+    mother_category_id: int,
+    db: Session = Depends(get_db),
+):
+    categoria = crud.reclassify_categoria(
+        db=db,
+        id_categoria=id_categoria,
+        mother_category_id=mother_category_id,
+    )
+    if not categoria:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    return {
+        "id_categoria": categoria.id_categoria,
+        "nombre": categoria.nombre,
+        "mother_category_id": categoria.mother_category_id,
+    }
+
+
+@public_router.delete("/users/{id_usuario}")
+def delete_user(id_usuario: int, db: Session = Depends(get_db)):
+    ok = crud.delete_user(db=db, id_usuario=id_usuario)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"ok": True}
+
+
+@public_router.get("/activity-logs/{id_usuario}")
+def activity_logs(id_usuario: int, db: Session = Depends(get_db)):
+    return crud.get_activity_logs(db=db, id_usuario=id_usuario)

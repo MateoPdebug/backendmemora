@@ -187,6 +187,61 @@ def update_password(db: Session, id_usuario: int, nueva_contrasena: str):
     return usuario
 
 
+def reclassify_categoria(
+    db: Session,
+    id_categoria: str,
+    mother_category_id: Optional[int],
+):
+    categoria = db.query(models.Categoria).filter(
+        models.Categoria.id_categoria == id_categoria
+    ).first()
+    if not categoria:
+        return None
+    categoria.mother_category_id = mother_category_id
+    db.commit()
+    db.refresh(categoria)
+    return categoria
+
+
+def delete_user(db: Session, id_usuario: int) -> bool:
+    usuario = db.query(models.Usuario).filter(
+        models.Usuario.id_usuario == id_usuario
+    ).first()
+    if not usuario:
+        return False
+    db.delete(usuario)
+    db.commit()
+    return True
+
+
+def get_activity_logs(db: Session, id_usuario: int):
+    gastos = db.query(models.Gasto).filter(
+        models.Gasto.id_usuario == id_usuario
+    ).all()
+    ingresos = db.query(models.Ingreso).filter(
+        models.Ingreso.id_usuario == id_usuario
+    ).all()
+
+    logs = []
+    for g in gastos:
+        logs.append({
+            "tipo": "gasto",
+            "fecha": g.fecha.isoformat() if g.fecha else None,
+            "descripcion": f"{g.descripcion or 'Sin descripción'} — ${float(g.monto):,.0f}",
+            "monto": float(g.monto),
+        })
+    for i in ingresos:
+        logs.append({
+            "tipo": "ingreso",
+            "fecha": i.fecha.isoformat() if i.fecha else None,
+            "descripcion": f"{i.descripcion or 'Sin descripción'} — ${float(i.monto):,.0f}",
+            "monto": float(i.monto),
+        })
+
+    logs.sort(key=lambda x: x["fecha"] or "", reverse=True)
+    return logs
+
+
 def upsert_presupuesto(db: Session, id_usuario: int, mes: str, monto: Decimal):
     existing = get_presupuesto(db, id_usuario, mes)
     if existing:
